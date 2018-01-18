@@ -149,9 +149,7 @@ class ControllerExtensionPaymentLipaPay extends Controller {
             $this->error['merchant_private_key'] = $this->language->get('error_merchant_private_key');
         }
 
-        if (!$this->request->post['payment_lipapay_lipapay_public_key']) {
-            $this->error['lipapay_public_key'] = $this->language->get('error_lipapay_public_key');
-        }
+
 
         return !$this->error;
     }

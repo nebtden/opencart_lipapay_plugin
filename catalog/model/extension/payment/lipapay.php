@@ -48,7 +48,7 @@ class ModelExtensionPaymentLipapay extends Model {
 		$this->gateway_url = $lipapay_config['gateway_url'];
 		$this->appid = $lipapay_config['app_id'];
 		$this->private_key = $lipapay_config['merchant_private_key'];
-		$this->lipapay_public_key = $lipapay_config['lipapay_public_key'];
+
 		$this->postCharset = $lipapay_config['charset'];
 		$this->signtype = $lipapay_config['sign_type'];
 		$this->notifyUrl = $lipapay_config['notify_url'];
@@ -60,9 +60,7 @@ class ModelExtensionPaymentLipapay extends Model {
 		if (empty($this->private_key)||trim($this->private_key)=="") {
 			throw new Exception("private_key should not be NULL!");
 		}
-		if (empty($this->lipapay_public_key)||trim($this->lipapay_public_key)=="") {
-			throw new Exception("lipapay_public_key should not be NULL!");
-		}
+
 		if (empty($this->postCharset)||trim($this->postCharset)=="") {
 			throw new Exception("charset should not be NULL!");
 		}
