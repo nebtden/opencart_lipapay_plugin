@@ -6,37 +6,42 @@ class ControllerExtensionPaymentLipapay extends Controller {
         $this->load->model('checkout/order');
 
         $order_info = $this->model_checkout_order->getOrder($this->session->data['order_id']);
-
-        $config = array (
-            'app_id'               => $this->config->get('payment_lipapay_app_id'),
-            'merchant_private_key' => $this->config->get('payment_lipapay_merchant_private_key'),
-            'notify_url'           => HTTP_SERVER . "payment_callback/LipaPay",
-            'return_url'           => $this->url->link('checkout/success', 'language=' . $this->config->get('config_language')),
-            'charset'              => "UTF-8",
-            'sign_type'            => "MD%",
-            'gateway_url'          => $this->config->get('payment_lipapay_test') == "sandbox" ? "http://sandbox.lipapay.com/api/excashier.html" : "https://www.lipapay.com/api/excashier.html",
-            'LipaPay_public_key'    => $this->config->get('payment_lipapay_lipapay_public_key'),
-        );
         $out_trade_no = trim($order_info['order_id']);
-        $subject = trim($this->config->get('config_name'));
-        $total_amount = trim($this->currency->format($order_info['total'], 'CNY', '', false));
-        $body = '';//trim($_POST['WIDbody']);
+        $total_amount = trim($this->currency->format($order_info['total'], $this->config->get('payment_lipapay_monetary_unit'), '', false));
+        $config = array (
+            'merchantId'          => $this->config->get('payment_lipapay_app_id'),
+            'merchantKey'         => $this->config->get('payment_lipapay_app_id'),
+            'notifyUrl'           => HTTP_SERVER . "payment_callback/lipapay",
+            'returnUrl'           => $this->url->link('checkout/success'),
 
-        $payRequestBuilder = array(
-            'body'         => $body,
-            'subject'      => $subject,
-            'total_amount' => $total_amount,
-            'out_trade_no' => $out_trade_no,
-            'product_code' => 'FAST_INSTANT_TRADE_PAY'
+            'signType'            => "MD5",
+//            'goodsName'            => $order_info['goods'][0],
+            'goodsName'           => 'test',
+            'goodsType'           => "2",
+            'expirationTime'      => "10000",
+            'sourceType'          => "B",
+            'buyerId'             => $order_info['customer_id'],
+            'amount'              => $total_amount*100,
+            'merchantOrderNo'     => $out_trade_no,
+            'currency'            => $this->config->get('payment_lipapay_monetary_unit'),
         );
 
+        //加密方法获取
         $this->load->model('extension/payment/lipapay');
 
-        $response = $this->model_extension_payment_lipapay->pagePay($payRequestBuilder,$config);
-        $data['action'] = $config['gateway_url'] . "?charset=" . $this->model_extension_payment_lipapay->getPostCharset();
-        $data['form_params'] = $response;
+        $sign = $this->model_extension_payment_lipapay->generateSign($config,$this->config->get('payment_lipapay_merchant_private_key'));
+        $config['sign'] = $sign;
 
-        return $this->load->view('extension/payment/lipapay', $data);
+        //判断action
+        $env = $this->config->get('payment_lipapay_test');
+        if($env=='sandbox'){
+             $url = 'http://sandbox.lipapay.com/api/excashier.html';
+        }else{
+             $url =  'https://www.lipapay.com/api/excashier.html';
+        }
+        $config['action'] = $url;
+
+        return $this->load->view('extension/payment/lipapay', $config);
     }
 
     public function callback() {
