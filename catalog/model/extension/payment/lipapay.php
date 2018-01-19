@@ -1,216 +1,162 @@
 <?php
 class ModelExtensionPaymentLipapay extends Model {
-	private $apiMethodName="lipapay.trade.page.pay";
-	private $postCharset = "UTF-8";
-	private $apiVersion="1.0";
-	private $logFileName = "lipapay.log";
-	private $gateway_url = "https://www.lipapay.com/api/excashier.html";
-	private $lipapay_public_key;
-	private $private_key;
-	private $appid;
-	private $notifyUrl;
-	private $returnUrl;
-	private $format = "json";
-	private $signtype = "MD%";
+    private $apiMethodName="lipapay.trade.page.pay";
+    private $logFileName = "lipapay.log";
+    private $merchantKey;
+    private $merchantId;
+    private $notifyUrl;
+    private $returnUrl;
+    private $signType;
+    private $goodsType;
+    private $format = "json";
 
-	private $apiParas = array();
+    private $apiParas = array();
 
-	public function getMethod($address, $total) {
-		$this->load->language('extension/payment/lipapay');
+    public function getMethod($address, $total) {
+        $this->load->language('extension/payment/lipapay');
 
-		$query = $this->db->query("SELECT * FROM " . DB_PREFIX . "zone_to_geo_zone WHERE geo_zone_id = '" . (int)$this->config->get('payment_lipapay_geo_zone_id') . "' AND country_id = '" . (int)$address['country_id'] . "' AND (zone_id = '" . (int)$address['zone_id'] . "' OR zone_id = '0')");
 
-		if ($this->config->get('payment_lipapay_total') > 0 && $this->config->get('payment_lipapay_total') > $total) {
-			$status = false;
-		} elseif (!$this->config->get('payment_lipapay_geo_zone_id')) {
-			$status = true;
-		} elseif ($query->num_rows) {
-			$status = true;
-		} else {
-			$status = false;
-		}
+        $method_data = array(
+            'code'       => 'lipapay',
+            'title'      => $this->language->get('text_title'),
+            'terms'      => '',
 
-		$method_data = array();
+        );
 
-		if ($status) {
-			$method_data = array(
-				'code'       => 'lipapay',
-				'title'      => $this->language->get('text_title'),
-				'terms'      => '',
-				'sort_order' => $this->config->get('payment_lipapay_sort_order')
-			);
-		}
 
-		return $method_data;
-	}
+        return $method_data;
+    }
 
-	private function setParams($lipapay_config){
-		$this->gateway_url = $lipapay_config['gateway_url'];
-		$this->appid = $lipapay_config['app_id'];
-		$this->private_key = $lipapay_config['merchant_private_key'];
+    private function setParams($lipapay_config){
+        $this->merchantId = $lipapay_config['payment_lipapay_app_id'];
+        $this->merchantKey = $lipapay_config['payment_lipapay_merchant_private_key'];
+        $this->notifyUrl = $lipapay_config['notifyUrl'];
+        $this->returnUrl = $lipapay_config['returnUrl'];
 
-		$this->postCharset = $lipapay_config['charset'];
-		$this->signtype = $lipapay_config['sign_type'];
-		$this->notifyUrl = $lipapay_config['notify_url'];
-		$this->returnUrl = $lipapay_config['return_url'];
 
-		if (empty($this->appid)||trim($this->appid)=="") {
-			throw new Exception("appid should not be NULL!");
-		}
-		if (empty($this->private_key)||trim($this->private_key)=="") {
-			throw new Exception("private_key should not be NULL!");
-		}
+    }
 
-		if (empty($this->postCharset)||trim($this->postCharset)=="") {
-			throw new Exception("charset should not be NULL!");
-		}
-		if (empty($this->gateway_url)||trim($this->gateway_url)=="") {
-			throw new Exception("gateway_url should not be NULL!");
-		}
-	}
+    function pagePay($config) {
+        $this->setParams($config);
+        $response = $this->pageExecute($this, "post");
+        $log = new Log($this->logFileName);
+        $log->write("response: ".var_export($response,true));
 
-	function pagePay($builder,$config) {
-		$this->setParams($config);
-		$biz_content=null;
-		if(!empty($builder)){
-			$biz_content = json_encode($builder,JSON_UNESCAPED_UNICODE);
-		}
+        return $response;
+    }
 
-		$log = new Log($this->logFileName);
-		$log->write($biz_content);
+    function check($arr, $config){
+        $this->setParams($config);
 
-		$this->apiParas["biz_content"] = $biz_content;
+        $result = $this->rsaCheckV1($arr, $this->signtype);
 
-		$response = $this->pageExecute($this, "post");
-		$log = new Log($this->logFileName);
-		$log->write("response: ".var_export($response,true));
+        return $result;
+    }
 
-		return $response;
-	}
+    public function pageExecute($request, $httpmethod = "POST") {
 
-	function check($arr, $config){
-		$this->setParams($config);
+        $sysParams["merchantId"] = $this->merchantId;
+        $sysParams["merchantOrderNo"] = $request->merchantOrderNo;
+        $sysParams["goodsName"] = $this->goodsName;
+        $sysParams["goodsType"] = $this->goodsType;
+        $sysParams["signType"] = $this->signType;
 
-		$result = $this->rsaCheckV1($arr, $this->signtype);
+        $sysParams["notifyUrl"] = $this->notifyUrl;
+        $sysParams["returnUrl"] = $this->returnUrl;
+        $sysParams["returnUrl"] = $this->currency;
+        $sysParams["returnUrl"] = $this->currency;
 
-		return $result;
-	}
+        $apiParams = $this->apiParas;
 
-	public function pageExecute($request, $httpmethod = "POST") {
-		$iv=$this->apiVersion;
+        $totalParams = array_merge($apiParams, $sysParams);
 
-		$sysParams["app_id"] = $this->appid;
-		$sysParams["version"] = $iv;
-		$sysParams["format"] = $this->format;
-		$sysParams["sign_type"] = $this->signtype;
-		$sysParams["method"] = $this->apiMethodName;
-		$sysParams["timestamp"] = date("Y-m-d H:i:s");
-		$sysParams["lipapay_sdk"] = $this->lipapaySdkVersion;
-		$sysParams["notify_url"] = $this->notifyUrl;
-		$sysParams["return_url"] = $this->returnUrl;
-		$sysParams["charset"] = $this->postCharset;
-		$sysParams["gateway_url"] = $this->gateway_url;
+        $totalParams["sign"] = $this->generateSign($totalParams, $this->private_key);
 
-		$apiParams = $this->apiParas;
+        if ("GET" == strtoupper($httpmethod)) {
+            $preString=$this->getSignContentUrlencode($totalParams);
+            $requestUrl = $this->gateway_url."?".$preString;
 
-		$totalParams = array_merge($apiParams, $sysParams);
+            return $requestUrl;
+        } else {
+            foreach ($totalParams as $key => $value) {
+                if (false === $this->checkEmpty($value)) {
+                    $value = str_replace("\"", "&quot;", $value);
+                    $totalParams[$key] = $value;
+                } else {
+                    unset($totalParams[$key]);
+                }
+            }
+            return $totalParams;
+        }
+    }
 
-		$totalParams["sign"] = $this->generateSign($totalParams, $this->signtype);
+    protected function checkEmpty($value) {
+        if (!isset($value))
+            return true;
+        if ($value === null)
+            return true;
+        if (trim($value) === "")
+            return true;
 
-		if ("GET" == strtoupper($httpmethod)) {
-			$preString=$this->getSignContentUrlencode($totalParams);
-			$requestUrl = $this->gateway_url."?".$preString;
+        return false;
+    }
 
-			return $requestUrl;
-		} else {
-			foreach ($totalParams as $key => $value) {
-				if (false === $this->checkEmpty($value)) {
-					$value = str_replace("\"", "&quot;", $value);
-					$totalParams[$key] = $value;
-				} else {
-					unset($totalParams[$key]);
-				}
-			}
-			return $totalParams;
-		}
-	}
+    public function rsaCheckV1($params, $signType='RSA') {
+        $sign = $params['sign'];
+        $params['sign_type'] = null;
+        $params['sign'] = null;
+        return $this->verify($this->getSignContent($params), $sign, $signType);
+    }
 
-	protected function checkEmpty($value) {
-		if (!isset($value))
-			return true;
-		if ($value === null)
-			return true;
-		if (trim($value) === "")
-			return true;
+    function verify($data, $sign, $signType = 'RSA') {
+        $pubKey= $this->lipapay_public_key;
+        $res = "-----BEGIN PUBLIC KEY-----\n" .
+            wordwrap($pubKey, 64, "\n", true) .
+            "\n-----END PUBLIC KEY-----";
 
-		return false;
-	}
+        (trim($pubKey)) or die('Alipay public key error!');
 
-	public function rsaCheckV1($params, $signType='RSA') {
-		$sign = $params['sign'];
-		$params['sign_type'] = null;
-		$params['sign'] = null;
-		return $this->verify($this->getSignContent($params), $sign, $signType);
-	}
+        if ("RSA2" == $signType) {
+            $result = (bool)openssl_verify($data, base64_decode($sign), $res, OPENSSL_ALGO_SHA256);
+        } else {
+            $result = (bool)openssl_verify($data, base64_decode($sign), $res);
+        }
 
-	function verify($data, $sign, $signType = 'RSA') {
-		$pubKey= $this->lipapay_public_key;
-		$res = "-----BEGIN PUBLIC KEY-----\n" .
-			wordwrap($pubKey, 64, "\n", true) .
-			"\n-----END PUBLIC KEY-----";
+        return $result;
+    }
 
-		(trim($pubKey)) or die('Alipay public key error!');
 
-		if ("RSA2" == $signType) {
-			$result = (bool)openssl_verify($data, base64_decode($sign), $res, OPENSSL_ALGO_SHA256);
-		} else {
-			$result = (bool)openssl_verify($data, base64_decode($sign), $res);
-		}
+    public function generateSign($data, $LipaPay_key) {
+        //检测参数是否在这个列表，排除其他参数
+        $fields = [
+            'merchantId',
+            'signType',
+            'returnUrl',
+            'notifyUrl',
+            'merchantOrderNo',
+            'amount',
+            'buyerId',
+            'goodsName',
+            'goodsType',
+            'expirationTime',
+            'sourceType',
+            'currency'];
 
-		return $result;
-	}
+        ksort($data);
+        $str = '';
+        foreach ($data as $key => $value) {
+            if(!in_array($key,$fields)){
+                continue;
+            }
+            $str = $str . $key . '=' . $value . '&';
+        }
+        $str = substr($str, 0, strlen($str) - 1);
 
-	public function getSignContent($params) {
-		ksort($params);
+        $sign = md5($str . $LipaPay_key);
+        return $sign;
+    }
 
-		$stringToBeSigned = "";
-		$i = 0;
-		foreach ($params as $k => $v) {
-			if (false === $this->checkEmpty($v) && "@" != substr($v, 0, 1)) {
-				if ($i == 0) {
-					$stringToBeSigned .= "$k" . "=" . "$v";
-				} else {
-					$stringToBeSigned .= "&" . "$k" . "=" . "$v";
-				}
-				$i++;
-			}
-		}
-
-		unset ($k, $v);
-		return $stringToBeSigned;
-	}
-
-	public function generateSign($params, $signType = "RSA") {
-		return $this->sign($this->getSignContent($params), $signType);
-	}
-
-	protected function sign($data, $signType = "RSA") {
-		$priKey=$this->private_key;
-		$res = "-----BEGIN RSA PRIVATE KEY-----\n" .
-			wordwrap($priKey, 64, "\n", true) .
-			"\n-----END RSA PRIVATE KEY-----";
-
-		if ("RSA2" == $signType) {
-			openssl_sign($data, $sign, $res, OPENSSL_ALGO_SHA256);
-		} else {
-			openssl_sign($data, $sign, $res);
-		}
-
-		$sign = base64_encode($sign);
-		return $sign;
-	}
-
-	function getPostCharset(){
-		return trim($this->postCharset);
-	}
+    function getPostCharset(){
+        return trim($this->postCharset);
+    }
 }
