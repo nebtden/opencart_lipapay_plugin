@@ -22,11 +22,7 @@ class ControllerExtensionPaymentLipaPay extends Controller {
             $this->response->redirect($this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=payment'));
         }
 
-        if (isset($this->error['warning'])) {
-            $data['error_warning'] = $this->error['warning'];
-        } else {
-            $data['error_warning'] = '';
-        }
+
 
         if (isset($this->error['app_id'])) {
             $data['error_app_id'] = $this->error['app_id'];
@@ -96,6 +92,12 @@ class ControllerExtensionPaymentLipaPay extends Controller {
         } else {
             $data['payment_lipapay_order_status_id'] = $this->config->get('payment_lipapay_order_status_id');
         }
+
+//        if (isset($this->request->post['payment_lipapay_status'])) {
+//            $data['payment_lipapay_status'] = $this->request->post['payment_lipapay_status'];
+//        } else {
+//            $data['payment_lipapay_status'] = $this->config->get('payment_lipapay_status');
+//        }
 
         $this->load->model('localisation/order_status');
 

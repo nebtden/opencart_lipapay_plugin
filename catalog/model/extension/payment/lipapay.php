@@ -13,7 +13,7 @@ class ModelExtensionPaymentLipapay extends Model {
     private $apiParas = array();
 
     public function getMethod($address, $total) {
-        $this->load->language('extension/payment/lipapay');
+//        $this->load->language('extension/payment/lipapay');
         $method_data = array(
             'code'       => 'lipapay',
             'title'      => $this->language->get('text_title'),
@@ -41,10 +41,10 @@ class ModelExtensionPaymentLipapay extends Model {
 
         if ($status) {
             $method_data = array(
-                'code'       => 'liqpay',
+                'code'       => 'lipapay',
                 'title'      => $this->language->get('text_title'),
                 'terms'      => '',
-                'sort_order' => $this->config->get('payment_liqpay_sort_order')
+                'sort_order' => $this->config->get('payment_lipapay_sort_order')
             );
         }
 

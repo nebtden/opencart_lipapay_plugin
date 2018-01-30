@@ -66,9 +66,11 @@ class ControllerExtensionPaymentLipapay extends Controller {
                 $return['signType'] = 'MD5';
                 $return['merchantOrderNo'] = $arr['merchantOrderNo'];
                 $return['orderId'] = $arr['orderId'];
-
+                $this->load->model('checkout/order');
                 $mysign = $this->model_extension_payment_lipapay->generateSign($return, $this->config->get('payment_lipapay_merchant_private_key'));
                 $return['sign'] =$mysign;
+
+                $this->model_checkout_order->addOrderHistory($order_id, $this->config->get('payment_lipapay_order_status_id'));
 
                 echo json_encode($return);
             }
